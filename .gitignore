@@ -1,0 +1,6 @@
+/common.o
+/platform/linux/linux.o
+/platform/linux/linux_ptrace.o
+/reallocarray.o
+/setns
+/setns.o

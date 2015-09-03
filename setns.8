@@ -1,0 +1,45 @@
+.Dd September 29, 2015
+.Dt SETNS 8
+.Os
+.\" ---------------------------------------------------------------------------
+.Sh NAME
+.Nm setns
+.Nd execute setns syscall in arbitrary process
+.\" ---------------------------------------------------------------------------
+.Sh SYNOPSIS
+.Nm
+.Op Fl n Ao network namespace name or pid Ac 
+.Op Fl p Ao target pid Ac
+.Pp
+.\" ---------------------------------------------------------------------------
+.Sh DESCRIPTION
+.Nm setns
+uses ptrace to force the target process to issue the setns syscall
+and change its network namespace.
+.\" ---------------------------------------------------------------------------
+.Sh OPTIONS
+The following options are supported by
+.Nm :
+.Bl -tag -width indent
+.It Fl n Ao network namespace name or pid Ac
+The target network namespace the process should join.
+.It Fl p Ao target pid Ac
+The target process. If not specified,
+.Nm setns
+will use 
+.Nm getppid(2).
+.El
+.\" ---------------------------------------------------------------------------
+.Sh EXAMPLES
+Attach a network namespace:
+.Dl $ setns -n public -p 1234
+.\" ---------------------------------------------------------------------------
+.Sh SEE ALSO
+.Xr setns 2
+.\" ---------------------------------------------------------------------------
+.Sh AUTHORS
+.An Arthur Gautier Aq baloo@gandi.net
+.\" ---------------------------------------------------------------------------
+.Sh BUGS
+See the issue tracker at
+.Em https://github.com/baloo/setns/issues
