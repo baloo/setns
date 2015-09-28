@@ -1,0 +1,15 @@
+Source: setns
+Section: admin
+Priority: optional
+Maintainer: Arthur Gautier <baloo@gandi.net>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.6
+Homepage: https://github.com/baloo/setns
+Vcs-Git: git://anonscm.debian.org/collab-maint/setns.git
+Vcs-Browser: https://github.com/baloo/setns
+
+Package: setns
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Inject a setns syscall in any process
+ setns leverage ptrace to inject a setns syscall in any process.
