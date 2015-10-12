@@ -23,11 +23,14 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <linux/capability.h>
 #include <sched.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/param.h>
+#include <sys/prctl.h>
 
 #include "platform/platform.h"
 #include "common.h"
@@ -62,7 +65,6 @@ mmap_scratch(struct ptrace_child *child, child_addr_t *addr)
 	scratch_page = ptrace_remote_syscall(
 	    child, mmap_syscall, 0, sysconf(_SC_PAGE_SIZE),
 	    PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-	// MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 
 	if (scratch_page > (unsigned long)-1000) {
 		return -(signed long)scratch_page;
@@ -123,7 +125,7 @@ ignore_hup(struct ptrace_child *child, child_addr_t scratch_page)
 }
 
 static int
-child_setns(pid_t pid, const char *nspath)
+child_setns(pid_t pid, const char *nspath, bool drop_capability)
 {
 	int err, nsfd;
 	struct ptrace_child child;
@@ -156,6 +158,87 @@ child_setns(pid_t pid, const char *nspath)
 	err = do_syscall(&child, setns, nsfd, CLONE_NEWNET, 0, 0, 0, 0);
 	if (err < 0) {
 		error("setns failed");
+		goto close;
+	}
+
+	if (drop_capability) {
+		struct __user_cap_header_struct header;
+		struct __user_cap_data_struct data;
+
+		child_addr_t scratch_page_header = -1;
+		child_addr_t scratch_page_data = -1;
+
+		/* Drop SYS_ADMIN capability in all future tasks */
+		if ((err = do_syscall(&child, prctl, PR_CAPBSET_DROP,
+				      CAP_SYS_ADMIN, 0, 0, 0, 0)) != 0) {
+			error("prctl failed");
+			goto close;
+		}
+
+		/* Avoid getting back SYS_ADMIN capability by calling setuid */
+		if ((err = do_syscall(&child, prctl, PR_SET_KEEPCAPS,
+				      1, 0, 0, 0, 0)) != 0) {
+			error("prctl failed");
+			goto close;
+		}
+
+		/* Allocate two shared pages to store capset header/data */
+		if ((err = mmap_scratch(&child, &scratch_page_header)) != 0) {
+			error("scratch_page_header allocation failed");
+			goto close;
+		}
+
+		if ((err = mmap_scratch(&child, &scratch_page_data)) != 0) {
+			error("scratch_page_data allocation failed");
+			goto unmap_header;
+		}
+
+		header.pid = pid;
+		header.version = _LINUX_CAPABILITY_VERSION_3;
+
+		/* Fill header page with valid data */
+		if ((err = ptrace_memcpy_to_child(&child, scratch_page_header,
+						  &header, sizeof(header))) !=
+		    0) {
+			error("capget copy header failed");
+			goto unmap_data;
+		}
+
+		/* Get current capabilities back in data page */
+		if ((err = do_syscall(&child, capget, scratch_page_header,
+				      scratch_page_data, 0, 0, 0, 0)) != 0) {
+			error("capget failed");
+			goto unmap_data;
+		}
+
+		/* Get back data page in current context */
+		if ((err = ptrace_memcpy_from_child(&child, &data,
+						    scratch_page_data,
+						    sizeof(data))) != 0) {
+			error("capget copy failed");
+			goto unmap_data;
+		}
+
+		/* Drop SYS_ADMIN capability */
+		data.effective &= ~CAP_TO_MASK(CAP_SYS_ADMIN);
+
+		/* Put back data in child' page */
+		if ((err = ptrace_memcpy_to_child(&child, scratch_page_data,
+						  &data, sizeof(data))) != 0) {
+			error("capget copyback failed");
+			goto unmap_data;
+		}
+
+		/* Actually call capset to drop SYS_ADMIN capability */
+		if ((err = do_syscall(&child, capset, scratch_page_header,
+				      scratch_page_data, 0, 0, 0, 0)) != 0) {
+			error("capset failed");
+		}
+
+	unmap_data:
+		do_unmap(&child, scratch_page_data, page_size);
+	unmap_header:
+		do_unmap(&child, scratch_page_header, page_size);
 	}
 
 close:
@@ -178,7 +261,8 @@ usage()
 {
 	fprintf(stderr, "Usage:   %s [OPTIONS ...]\n", __progname);
 	fprintf(stderr, "-n name   Name of netns.\n");
-	fprintf(stderr, "-p pid  Pid of target, if undefined ppid is used\n");
+	fprintf(stderr, "-p pid    Pid of target, if undefined ppid is used\n");
+	fprintf(stderr, "-d        Drop CAP_SYS_ADMIN capability\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -197,10 +281,11 @@ int
 main(int argc, char **argv)
 {
 	pid_t child = -1;
+	bool drop_capability = false;
 	char ch;
 	char pathbuf[MAXPATHLEN];
 	char *nspath = NULL, *pidspec = NULL, *netspec = NULL;
-	const char *options = "p:n:";
+	const char *options = "dn:p:";
 
 	while ((ch = getopt(argc, argv, options)) != -1) {
 		switch (ch) {
@@ -209,6 +294,9 @@ main(int argc, char **argv)
 			break;
 		case 'n':
 			netspec = optarg;
+			break;
+		case 'd':
+			drop_capability = true;
 			break;
 		default:
 			usage();
@@ -225,7 +313,8 @@ main(int argc, char **argv)
 		if (errno == ERANGE)
 			perror("Invalid pid: %m");
 		if (*endptr != '\0') {
-			fprintf(stderr, "Invalid pid: must be integer %s\n", endptr);
+			fprintf(stderr, "Invalid pid: must be integer %s\n",
+				endptr);
 			exit(EXIT_FAILURE);
 		}
 		child = (pid_t)t;
@@ -249,5 +338,5 @@ main(int argc, char **argv)
 		nspath = pathbuf;
 	}
 
-	return child_setns(child, nspath);
+	return child_setns(child, nspath, drop_capability);
 }

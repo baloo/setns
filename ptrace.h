@@ -90,6 +90,9 @@ struct syscall_numbers {
 	long nr_sendmsg;
 	long nr_socketcall;
 	long nr_setns;
+	long nr_prctl;
+	long nr_capget;
+	long nr_capset;
 };
 
 typedef unsigned long child_addr_t;

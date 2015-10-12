@@ -80,4 +80,11 @@ int get_process_tty_termios(pid_t pid, struct termios *tio);
 void move_process_group(struct ptrace_child *child, pid_t from, pid_t to);
 void copy_user(struct ptrace_child *d, struct ptrace_child *s);
 
+long __ptrace_command(struct ptrace_child *child, enum __ptrace_request req,
+		      void *, void *);
+#define ptrace_command(cld, req, ...)                                          \
+	_ptrace_command(cld, req, ##__VA_ARGS__, NULL, NULL)
+#define _ptrace_command(cld, req, addr, data, ...)                             \
+	__ptrace_command((cld), (req), (void *)(addr), (void *)(data))
+
 #endif

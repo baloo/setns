@@ -35,6 +35,9 @@
     SC(sendmsg),
 #endif
     SC(setns),
+    SC(prctl),
+    SC(capget),
+    SC(capset),
 }
 ,
 
