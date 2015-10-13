@@ -311,7 +311,7 @@ main(int argc, char **argv)
 		errno = 0;
 		long t = strtol(pidspec, &endptr, 10);
 		if (errno == ERANGE)
-			perror("Invalid pid: %m");
+			perror("Invalid pid: %s", pidspec);
 		if (*endptr != '\0') {
 			fprintf(stderr, "Invalid pid: must be integer %s\n",
 				endptr);
