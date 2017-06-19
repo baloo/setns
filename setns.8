@@ -10,6 +10,7 @@
 .Nm
 .Op Fl n Ao network namespace name or pid Ac 
 .Op Fl p Ao target pid Ac
+.Op Fl d
 .Pp
 .\" ---------------------------------------------------------------------------
 .Sh DESCRIPTION
@@ -28,6 +29,8 @@ The target process. If not specified,
 .Nm setns
 will use 
 .Nm getppid(2).
+.It Fl d
+Drop CAP_SYS_ADMIN, avoid changing namespace again.
 .El
 .\" ---------------------------------------------------------------------------
 .Sh EXAMPLES

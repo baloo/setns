@@ -49,14 +49,6 @@
 		_min1 < _min2 ? _min1 : _min2;                                 \
 	})
 
-static long __ptrace_command(struct ptrace_child *child,
-			     enum __ptrace_request req, void *, void *);
-
-#define ptrace_command(cld, req, ...)                                          \
-	_ptrace_command(cld, req, ##__VA_ARGS__, NULL, NULL)
-#define _ptrace_command(cld, req, addr, data, ...)                             \
-	__ptrace_command((cld), (req), (void *)(addr), (void *)(data))
-
 struct ptrace_personality {
 	size_t syscall_rv;
 	size_t syscall_arg0;
@@ -327,7 +319,7 @@ ptrace_memcpy_from_child(struct ptrace_child *child, void *dst,
 	return 0;
 }
 
-static long
+long
 __ptrace_command(struct ptrace_child *child, enum __ptrace_request req,
 		 void *addr, void *data)
 {

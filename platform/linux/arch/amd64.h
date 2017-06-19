@@ -73,6 +73,9 @@ struct syscall_numbers arch_syscall_numbers[2] = {
 	.nr_dup2 = 63,
 	.nr_socketcall = 102,
 	.nr_setns = 346,
+	.nr_prctl = 172,
+	.nr_capget = 184,
+	.nr_capset = 185,
     }};
 
 static int
